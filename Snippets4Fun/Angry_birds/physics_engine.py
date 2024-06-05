@@ -391,3 +391,4 @@ def block_collision_handler(block, block2):
             collision = True
 
     return block, block2, collision
+
