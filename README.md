@@ -1,3 +1,3 @@
 # Just_4_Fun
 ## mix of cool snippets
-silly stuff found around
+silly stuff found around when bored
