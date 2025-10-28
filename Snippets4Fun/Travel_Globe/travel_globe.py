@@ -87,6 +87,28 @@ MARKERS: List[Marker] = [
 # ---------------------------------------------------------------------------
 # Utility functions for surface generation
 # ---------------------------------------------------------------------------
+def blit_surface_from_array(surface: pygame.Surface, array: np.ndarray) -> None:
+    """Copy an RGB(A) numpy array into a pygame surface safely."""
+
+    if array.ndim != 3 or array.shape[2] not in (3, 4):
+        raise ValueError("Array must be height×width×{3,4} for RGB(A) blitting.")
+
+    formatted = np.ascontiguousarray(array.transpose((1, 0, 2)))
+
+    if formatted.shape[2] == 3:
+        pygame.surfarray.blit_array(surface, formatted)
+        return
+
+    # Handle RGBA surfaces by copying colour and alpha planes independently.
+    rgb_view = pygame.surfarray.pixels3d(surface)
+    np.copyto(rgb_view, formatted[:, :, :3])
+    del rgb_view
+
+    alpha_view = pygame.surfarray.pixels_alpha(surface)
+    np.copyto(alpha_view, formatted[:, :, 3])
+    del alpha_view
+
+
 def create_vertical_gradient(size: Tuple[int, int], top: Tuple[int, int, int], bottom: Tuple[int, int, int]) -> pygame.Surface:
     width, height = size
     array = np.zeros((height, width, 3), dtype=np.uint8)
@@ -95,7 +117,7 @@ def create_vertical_gradient(size: Tuple[int, int], top: Tuple[int, int, int], b
         color = [int(top[i] * (1 - t) + bottom[i] * t) for i in range(3)]
         array[y, :, :] = color
     surface = pygame.Surface(size)
-    pygame.surfarray.blit_array(surface, array.transpose((1, 0, 2)))
+    blit_surface_from_array(surface, array)
     return surface.convert()
 
 
@@ -114,7 +136,7 @@ def create_radial_gradient(diameter: int, inner: Tuple[int, int, int], outer: Tu
     gradient[:, :, 3] = np.clip(alpha, 0, 255)
 
     surface = pygame.Surface((diameter, diameter), pygame.SRCALPHA)
-    pygame.surfarray.blit_array(surface, gradient.transpose((1, 0, 2)))
+    blit_surface_from_array(surface, gradient)
     return surface.convert_alpha()
 
 
@@ -132,7 +154,7 @@ def create_halo(radius: int) -> pygame.Surface:
     halo_array[:, :, 1] = HALO_COLOR[1]
     halo_array[:, :, 2] = HALO_COLOR[2]
     halo_array[:, :, 3] = np.clip(alpha, 0, 255).astype(np.uint8)
-    pygame.surfarray.blit_array(halo, halo_array.transpose((1, 0, 2)))
+    blit_surface_from_array(halo, halo_array)
     return halo.convert_alpha()
 
 
@@ -143,7 +165,7 @@ def create_horizontal_mask(width: int, height: int, left_color: Tuple[int, int, 
         t = x / max(width - 1, 1)
         for i in range(4):
             gradient[:, x, i] = int(left_color[i] * (1 - t) + right_color[i] * t)
-    pygame.surfarray.blit_array(mask, gradient.transpose((1, 0, 2)))
+    blit_surface_from_array(mask, gradient)
     return mask.convert_alpha()
 
 
@@ -177,7 +199,7 @@ def create_land_texture(width: int, height: int) -> pygame.Surface:
     land[:, :, 1] = (210 + intensity / 2).astype(np.uint8)
     land[:, :, 2] = (170 + intensity / 4).astype(np.uint8)
     land[:, :, 3] = (70 + intensity).astype(np.uint8)
-    pygame.surfarray.blit_array(texture, land.transpose((1, 0, 2)))
+    blit_surface_from_array(texture, land)
     return texture.convert_alpha()
 
 
