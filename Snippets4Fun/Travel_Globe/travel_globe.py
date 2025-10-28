@@ -31,7 +31,7 @@ PRIMARY_TEXT = (245, 248, 255)
 SECONDARY_TEXT = (182, 194, 214)
 ACCENT_COLOR = (140, 198, 255)
 
-MAP_WIDTH, MAP_HEIGHT = 1024, 512
+MAP_WIDTH, MAP_HEIGHT = 2048, 1024
 
 pygame.init()
 pygame.display.set_caption("WanderWorld Luxe Concept")
@@ -248,51 +248,176 @@ def blend_color(color: Tuple[int, int, int], factor: float, target: Tuple[int, i
     )
 
 
-def generate_ocean_surface() -> pygame.Surface:
-    surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT))
-    top = np.array([18, 68, 120], dtype=float)
-    bottom = np.array([4, 28, 70], dtype=float)
-    for y in range(MAP_HEIGHT):
-        t = y / (MAP_HEIGHT - 1)
-        color = (top * (1 - t) + bottom * t).astype(int)
-        pygame.draw.line(surface, color, (0, y), (MAP_WIDTH, y))
-    # Add subtle vertical light beams
-    overlay = pygame.Surface((MAP_WIDTH, MAP_HEIGHT), pygame.SRCALPHA)
-    for i in range(20):
+def fractal_noise(
+    width: int,
+    height: int,
+    *,
+    octaves: int = 5,
+    persistence: float = 0.55,
+    seed: int = 0,
+) -> np.ndarray:
+    rng = np.random.RandomState(seed)
+    noise = np.zeros((width, height), dtype=np.float32)
+    amplitude = 1.0
+    total_amplitude = 0.0
+
+    base_resolution = 32
+    for octave in range(octaves):
+        res_w = min(width, base_resolution * (2 ** octave))
+        res_h = min(height, base_resolution * (2 ** octave))
+        res_w = max(2, res_w)
+        res_h = max(2, res_h)
+
+        random_values = rng.rand(res_w, res_h).astype(np.float32)
+        rgb = np.repeat(random_values[:, :, None] * 255.0, 3, axis=2).astype(np.uint8)
+        small_surface = pygame.surfarray.make_surface(rgb)
+        scaled = pygame.transform.smoothscale(small_surface, (width, height))
+        scaled_array = (
+            pygame.surfarray.array3d(scaled).astype(np.float32)[:, :, 0] / 255.0
+        )
+
+        noise += scaled_array * amplitude
+        total_amplitude += amplitude
+        amplitude *= persistence
+
+    if total_amplitude == 0:
+        return noise
+    noise /= total_amplitude
+    return noise
+
+
+def soft_blur(surface: pygame.Surface, factor: float = 0.35, passes: int = 2) -> pygame.Surface:
+    width, height = surface.get_size()
+    working = surface.copy()
+    for _ in range(passes):
+        scaled = pygame.transform.smoothscale(
+            working,
+            (
+                max(2, int(width * factor)),
+                max(2, int(height * factor)),
+            ),
+        )
+        working = pygame.transform.smoothscale(scaled, (width, height))
+    return working
+
+
+def generate_ocean_surface() -> Tuple[pygame.Surface, np.ndarray]:
+    gradient = np.zeros((MAP_WIDTH, MAP_HEIGHT, 3), dtype=np.float32)
+    top = np.array([18, 70, 128], dtype=np.float32)
+    bottom = np.array([4, 26, 64], dtype=np.float32)
+    latitudes = np.linspace(0.0, 1.0, MAP_HEIGHT, dtype=np.float32)
+    gradient[:] = (top * (1 - latitudes)[:, None]) + (bottom * latitudes[:, None])
+
+    depth_noise = fractal_noise(
+        MAP_WIDTH,
+        MAP_HEIGHT,
+        octaves=6,
+        persistence=0.6,
+        seed=11,
+    )
+    ripple_noise = fractal_noise(
+        MAP_WIDTH,
+        MAP_HEIGHT,
+        octaves=4,
+        persistence=0.55,
+        seed=23,
+    )
+
+    gradient += (depth_noise[:, :, None] - 0.5) * 90.0
+    gradient += (ripple_noise[:, :, None] - 0.5) * 35.0
+
+    longitude = np.linspace(-1.0, 1.0, MAP_WIDTH, dtype=np.float32)[:, None]
+    gradient += ((1.0 - longitude**2) * 28.0)[:, None]
+
+    gradient = np.clip(gradient, 0, 255).astype(np.uint8)
+    ocean_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT))
+    pygame.surfarray.blit_array(ocean_surface, gradient)
+
+    caustics = pygame.Surface((MAP_WIDTH, MAP_HEIGHT), pygame.SRCALPHA)
+    for i in range(28):
         center = random.randint(0, MAP_WIDTH)
-        width = random.randint(60, 180)
-        alpha = random.randint(18, 28)
-        pygame.draw.rect(overlay, (80, 160, 220, alpha), pygame.Rect(center - width // 2, 0, width, MAP_HEIGHT))
-    surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-    return surface
+        width = random.randint(80, 220)
+        alpha = random.randint(12, 26)
+        pygame.draw.rect(
+            caustics,
+            (120, 200, 255, alpha),
+            pygame.Rect(center - width // 2, 0, width, MAP_HEIGHT),
+        )
+    caustics = soft_blur(caustics, factor=0.18, passes=2)
+    ocean_surface.blit(caustics, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+    return ocean_surface, depth_noise
 
 
-def generate_continent_surface() -> Tuple[pygame.Surface, pygame.Surface]:
+def generate_continent_surface() -> Tuple[pygame.Surface, pygame.Surface, np.ndarray]:
     land_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT), pygame.SRCALPHA)
     mask_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT), pygame.SRCALPHA)
     for polygon, base_color in CONTINENT_POLYGONS:
         points = [lonlat_to_mapxy(lon, lat) for lon, lat in polygon]
-        pygame.draw.polygon(land_surface, (*base_color, 235), points)
-        outline_color = blend_color(base_color, 0.35, (255, 255, 255))
-        pygame.draw.lines(land_surface, outline_color, True, points, 3)
+        pygame.draw.polygon(land_surface, (*base_color, 240), points)
+        outline_color = blend_color(base_color, 0.4, (255, 255, 255))
+        pygame.draw.lines(land_surface, outline_color, True, points, 2)
         pygame.draw.polygon(mask_surface, (255, 255, 255, 255), points)
-    return land_surface, mask_surface
+
+    height_map = fractal_noise(
+        MAP_WIDTH,
+        MAP_HEIGHT,
+        octaves=6,
+        persistence=0.58,
+        seed=37,
+    )
+
+    land_pixels = pygame.surfarray.pixels3d(land_surface)
+    land_array = land_pixels.astype(np.float32)
+    alpha_pixels = pygame.surfarray.pixels_alpha(land_surface).astype(np.float32) / 255.0
+
+    shade = (height_map[:, :, None] - 0.5) * 120.0
+    lat_falloff = np.linspace(0.8, 1.2, MAP_HEIGHT, dtype=np.float32)
+    shade *= lat_falloff[None, :, None]
+    land_array += shade
+
+    coast_mask = soft_blur(mask_surface, factor=0.1, passes=2)
+    coast_alpha = pygame.surfarray.array_alpha(coast_mask).astype(np.float32) / 255.0
+    coast_highlight = np.clip(coast_alpha - alpha_pixels, 0.0, 1.0)
+    land_array += coast_highlight[:, :, None] * np.array([80, 120, 160], dtype=np.float32)
+
+    land_array = np.clip(land_array, 0, 255).astype(np.uint8)
+    land_pixels[:, :, :] = land_array
+    del land_pixels
+
+    alpha_view = pygame.surfarray.pixels_alpha(land_surface)
+    alpha_view[:, :] = (alpha_pixels * 255).astype(np.uint8)
+    del alpha_view
+
+    return land_surface, mask_surface, height_map
 
 
 def generate_cloud_surface(seed: int = 42) -> pygame.Surface:
     random.seed(seed)
     cloud_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT), pygame.SRCALPHA)
-    for _ in range(380):
-        w = random.randint(140, 280)
-        h = random.randint(60, 150)
-        x = random.randint(-40, MAP_WIDTH + 40)
-        y = random.randint(-40, MAP_HEIGHT + 40)
-        alpha = random.randint(25, 70)
+    for _ in range(560):
+        w = random.randint(180, 360)
+        h = random.randint(70, 190)
+        x = random.randint(-80, MAP_WIDTH + 80)
+        y = random.randint(-80, MAP_HEIGHT + 80)
+        alpha = random.randint(22, 65)
         color = (255, 255, 255, alpha)
         pygame.draw.ellipse(cloud_surface, color, pygame.Rect(x, y, w, h))
-    # Apply soft blur via smoothscale hack
-    small = pygame.transform.smoothscale(cloud_surface, (MAP_WIDTH // 2, MAP_HEIGHT // 2))
-    blurred = pygame.transform.smoothscale(small, (MAP_WIDTH, MAP_HEIGHT))
+    noise = fractal_noise(
+        MAP_WIDTH,
+        MAP_HEIGHT,
+        octaves=5,
+        persistence=0.65,
+        seed=seed + 7,
+    )
+    noise_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT), pygame.SRCALPHA)
+    noise_pixels = (np.clip((noise - 0.4) * 255.0 * 1.4, 0, 255)).astype(np.uint8)
+    alpha_overlay = np.repeat(noise_pixels[:, :, None], 3, axis=2)
+    pygame.surfarray.blit_array(noise_surface, alpha_overlay)
+    noise_surface.set_alpha(110)
+    cloud_surface.blit(noise_surface, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+    blurred = soft_blur(cloud_surface, factor=0.22, passes=2)
     return blurred
 
 
@@ -323,14 +448,20 @@ def generate_starfield() -> pygame.Surface:
 # ---------------------------------------------------------------------------
 class GlobeRenderer:
     def __init__(self) -> None:
-        self.ocean_surface = generate_ocean_surface()
-        self.land_surface, land_mask_surface = generate_continent_surface()
+        self.ocean_surface, self.ocean_variation = generate_ocean_surface()
+        (
+            self.land_surface,
+            land_mask_surface,
+            self.elevation_map,
+        ) = generate_continent_surface()
         self.map_surface = self.ocean_surface.copy()
         self.map_surface.blit(self.land_surface, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
         self.cloud_surface = generate_cloud_surface()
 
         self.map_pixels = pygame.surfarray.array3d(self.map_surface).astype(np.float32)
         self.land_alpha = pygame.surfarray.array_alpha(land_mask_surface).astype(np.float32) / 255.0
+        self.elevation_map = self.elevation_map.astype(np.float32)
+        self.ocean_variation = self.ocean_variation.astype(np.float32)
         self.cloud_alpha = pygame.surfarray.array_alpha(self.cloud_surface).astype(np.float32) / 255.0
 
         self.pixel_data: List[Tuple[int, int, float, float, Tuple[float, float, float]]] = []
@@ -379,33 +510,45 @@ class GlobeRenderer:
 
             base_color = sample_color(self.map_pixels, map_x, map_y)
             land = sample_scalar(self.land_alpha, map_x, map_y) > 0.1
+            elevation = sample_scalar(self.elevation_map, map_x, map_y)
+            ocean_detail = sample_scalar(self.ocean_variation, map_x, map_y)
             cloud_sample_x = map_x + cloud_offset * MAP_WIDTH
             cloud_alpha = sample_scalar(self.cloud_alpha, cloud_sample_x, map_y) * 0.55
 
             nx, ny, nz = normal
             sunlight = max(-1.0, min(1.0, nx * sun_dir[0] + ny * sun_dir[1] + nz * sun_dir[2]))
+            fresnel = max(0.0, 1.0 - nz)
+            view_alignment = max(0.0, nz)
 
             color = np.array(base_color, dtype=float)
             ambient = 0.35
 
             if land:
                 light = max(sunlight, 0.0)
-                shaded = ambient + 0.75 * light
+                relief = 0.55 + 0.45 * elevation
+                shaded = (ambient * 0.9 + 0.95 * light * relief)
                 color = color * shaded
+                golden = np.array([255, 190, 120]) * (light ** 0.35) * 0.35
+                color += golden * relief
                 if sunlight < 0.0:
                     night_factor = min(1.0, -sunlight * 1.4)
                     color = color * 0.18 + np.array([40, 52, 90]) * (night_factor * 0.4)
                     glow = 0.0
                     for _, vec, intensity in self.city_vectors:
                         alignment = max(0.0, nx * vec[0] + ny * vec[1] + nz * vec[2])
-                        glow += (alignment ** 25) * intensity
-                    glow = min(glow, 1.5)
-                    color += np.array([255, 190, 110]) * glow * night_factor
+                        glow += (alignment ** 30) * intensity
+                    glow = min(glow, 1.8)
+                    color += np.array([255, 200, 150]) * glow * night_factor
+                else:
+                    dusk = (1.0 - view_alignment) ** 3
+                    dusk_tone = np.array([255, 160, 140]) * dusk * 0.6
+                    color += dusk_tone
             else:
                 light = ambient + 0.8 * max(sunlight, 0.0)
-                color = color * (0.45 + 0.55 * light)
+                depth_tint = 0.55 + 0.45 * ocean_detail
+                color = color * (0.42 + 0.58 * light * depth_tint)
                 if sunlight < 0.0:
-                    color = color * 0.2 + np.array([20, 40, 70]) * (-sunlight * 0.4)
+                    color = color * 0.24 + np.array([16, 40, 72]) * (-sunlight * 0.45)
 
                 # Specular glimmer on oceans
                 if sunlight > 0.0:
@@ -415,8 +558,8 @@ class GlobeRenderer:
                         2 * sunlight * nz - sun_dir[2],
                     )
                     spec = max(0.0, reflect[0] * view_dir[0] + reflect[1] * view_dir[1] + reflect[2] * view_dir[2])
-                    specular = (spec ** 60) * 480
-                    color += np.array([180, 200, 255]) * specular
+                    specular = (spec ** 80) * 520
+                    color += np.array([190, 220, 255]) * specular * (0.6 + 0.4 * depth_tint)
 
             # Polar aurora accent on the night side
             lat_deg = math.degrees(lat)
@@ -430,12 +573,14 @@ class GlobeRenderer:
                 if sunlight < 0.0:
                     cloud_color = np.array([170, 190, 220]) * (0.2 + -sunlight * 0.4)
                 else:
-                    cloud_color = np.array([255, 255, 255]) * (0.4 + 0.6 * cloud_light)
+                    cloud_color = np.array([255, 255, 255]) * (0.35 + 0.65 * cloud_light)
                 color = color * (1 - cloud_alpha * 0.45) + cloud_color * (cloud_alpha * 0.45)
 
             # Glossy highlight toward camera
             center_weight = max(0.0, 1.0 - ((px - GLOBE_RADIUS) ** 2 + (py - GLOBE_RADIUS) ** 2) / (GLOBE_RADIUS ** 2))
-            color += np.array([40, 60, 100]) * (center_weight ** 2 * 0.25)
+            atmosphere = np.array([90, 140, 255]) * (fresnel ** 2) * 0.35
+            color += atmosphere
+            color += np.array([36, 56, 110]) * (center_weight ** 2 * 0.22)
 
             color = np.clip(color, 0, 255)
             pixels[px, py] = color
@@ -449,23 +594,40 @@ class GlobeRenderer:
         return globe_surface
 
     def _apply_atmosphere(self, surface: pygame.Surface) -> None:
-        glow_surface = pygame.Surface((GLOBE_RADIUS * 2 + 40, GLOBE_RADIUS * 2 + 40), pygame.SRCALPHA)
+        bloom = soft_blur(surface, factor=0.32, passes=1)
+        bloom.fill((130, 190, 255, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        surface.blit(bloom, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        glow_surface = pygame.Surface((GLOBE_RADIUS * 2 + 48, GLOBE_RADIUS * 2 + 48), pygame.SRCALPHA)
         center = glow_surface.get_width() // 2
         for r in range(center, 0, -1):
             t = r / center
-            alpha = int(120 * (1 - t) ** 1.8)
-            color = (70, 140, 255, alpha)
+            alpha = int(140 * (1 - t) ** 1.9)
+            color = (70, 150, 255, alpha)
             pygame.draw.circle(glow_surface, color, (center, center), r)
-        surface.blit(glow_surface, (-20, -20), special_flags=pygame.BLEND_RGBA_ADD)
+        surface.blit(glow_surface, (-24, -24), special_flags=pygame.BLEND_RGBA_ADD)
+
+        rim = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+        center_point = (GLOBE_RADIUS, GLOBE_RADIUS)
+        for i in range(42):
+            radius = GLOBE_RADIUS - i
+            alpha_value = max(0, 130 - i * 3)
+            pygame.draw.circle(rim, (90, 170, 255, alpha_value), center_point, radius, width=2)
+        surface.blit(rim, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
     def _apply_longitude_highlights(self, surface: pygame.Surface, rotation: float) -> None:
         overlay = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
         radius = GLOBE_RADIUS
-        for i in range(12):
-            angle = rotation + i * (math.tau / 12)
-            x = radius + int(math.sin(angle) * radius * 0.92)
-            color = (80, 160, 255, 40)
-            pygame.draw.line(overlay, color, (x, 0), (x, radius * 2), 2)
+        for i in range(16):
+            angle = rotation + i * (math.tau / 16)
+            x = radius + int(math.sin(angle) * radius * 0.94)
+            beam = pygame.Surface((6, radius * 2), pygame.SRCALPHA)
+            for y in range(radius * 2):
+                t = abs((y - radius) / radius)
+                alpha = max(0, 110 - int(t * 110))
+                pygame.draw.line(beam, (120, 200, 255, alpha // 2), (0, y), (5, y))
+            beam = soft_blur(beam, factor=0.45, passes=1)
+            overlay.blit(beam, (x - 3, 0), special_flags=pygame.BLEND_RGBA_ADD)
         surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
 
