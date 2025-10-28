@@ -1,5 +1,5 @@
-import { Suspense, useMemo, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Suspense, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, Stars } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
@@ -9,6 +9,24 @@ import Markers from './components/Markers.jsx';
 import CameraController from './components/CameraController.jsx';
 import Effects from './components/Effects.jsx';
 import UIOverlay from './components/UIOverlay.jsx';
+
+function SceneContent({ lightingMode, markers, selected, onSelectMarker }) {
+  const worldRef = useRef();
+
+  useFrame((state, delta) => {
+    if (!worldRef.current) return;
+    worldRef.current.rotation.y += delta * 0.08;
+    worldRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.05) * 0.05;
+  });
+
+  return (
+    <group ref={worldRef} position={[0, 0, 0]}>
+      <Atmosphere />
+      <Globe lightingMode={lightingMode} />
+      <Markers markers={markers} selected={selected} onSelect={onSelectMarker} />
+    </group>
+  );
+}
 
 const markerData = [
   {
@@ -62,11 +80,12 @@ function App() {
             </Html>
           }
         >
-          <group>
-            <Atmosphere />
-            <Globe lightingMode={lightingMode} />
-            <Markers markers={uiMarkers} selected={selected} onSelect={setSelected} />
-          </group>
+          <SceneContent
+            lightingMode={lightingMode}
+            markers={uiMarkers}
+            selected={selected}
+            onSelectMarker={setSelected}
+          />
           <Stars
             radius={120}
             depth={50}
@@ -84,7 +103,7 @@ function App() {
           color={lightingMode === 'day' ? '#ffffff' : '#91c4ff'}
         />
         <ambientLight intensity={lightingMode === 'day' ? 0.45 : 0.8} />
-        <CameraController focusMarker={selected} />
+        <CameraController />
       </Canvas>
 
       <AnimatePresence>
