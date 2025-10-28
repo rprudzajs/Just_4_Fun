@@ -20,15 +20,16 @@ import pygame
 # ---------------------------------------------------------------------------
 # Screen & layout constants
 # ---------------------------------------------------------------------------
-WIDTH, HEIGHT = 1200, 720
-GLOBE_CENTER = (460, 360)
-GLOBE_RADIUS = 260
-PANEL_RECT = pygame.Rect(750, 60, 380, 600)
-BACKGROUND_TOP = (6, 12, 30)
-BACKGROUND_BOTTOM = (10, 20, 45)
+WIDTH, HEIGHT = 1280, 760
+GLOBE_CENTER = (500, 400)
+GLOBE_RADIUS = 280
+FEATURE_PANEL_RECT = pygame.Rect(860, 130, 360, 520)
+NAV_BAR_HEIGHT = 88
+BACKGROUND_TOP = (8, 18, 44)
+BACKGROUND_BOTTOM = (6, 12, 30)
 PRIMARY_TEXT = (245, 248, 255)
-SECONDARY_TEXT = (180, 190, 210)
-ACCENT_COLOR = (135, 190, 255)
+SECONDARY_TEXT = (182, 194, 214)
+ACCENT_COLOR = (140, 198, 255)
 
 MAP_WIDTH, MAP_HEIGHT = 1024, 512
 
@@ -36,9 +37,13 @@ pygame.init()
 pygame.display.set_caption("WanderWorld Luxe Concept")
 pygame.font.init()
 TITLE_FONT = pygame.font.SysFont("Poppins", 42)
-LABEL_FONT = pygame.font.SysFont("Poppins", 24)
+LABEL_FONT = pygame.font.SysFont("Poppins", 26)
 SMALL_FONT = pygame.font.SysFont("Poppins", 18)
 TINY_FONT = pygame.font.SysFont("Poppins", 14)
+NAV_FONT = pygame.font.SysFont("Poppins", 20)
+BUTTON_FONT = pygame.font.SysFont("Poppins", 22)
+DISPLAY_FONT = pygame.font.SysFont("Playfair Display", 108)
+OVERLAY_FONT = pygame.font.SysFont("Poppins", 54)
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +71,18 @@ class Destination:
 
 
 DESTINATIONS: Dict[str, Destination] = {
+    "hyderabad": Destination(
+        key="hyderabad",
+        name="Hyderabad, India",
+        summary=(
+            "Discover the tech-meets-tradition culture of Hyderabad, where regal"
+            " palaces glow beside futuristic riverfront skylines."
+        ),
+        latitude=17.3850,
+        longitude=78.4867,
+        palette=((255, 216, 150), (20, 38, 96)),
+        highlights=("Heritage mornings", "Skyline nights"),
+    ),
     "tokyo": Destination(
         key="tokyo",
         name="Tokyo, Japan",
@@ -496,71 +513,253 @@ def sample_scalar(array: np.ndarray, x: float, y: float) -> float:
 # ---------------------------------------------------------------------------
 # UI rendering helpers
 # ---------------------------------------------------------------------------
-def draw_panel(surface: pygame.Surface, selected: Destination | None) -> None:
-    panel_surface = pygame.Surface(PANEL_RECT.size, pygame.SRCALPHA)
-    panel_surface.fill((18, 26, 48))
-    # Luxury gradient
-    gradient = pygame.Surface(PANEL_RECT.size, pygame.SRCALPHA)
-    for y in range(PANEL_RECT.height):
-        t = y / PANEL_RECT.height
+def draw_feature_panel(surface: pygame.Surface, selected: Destination | None) -> None:
+    destination = selected or DESTINATIONS["hyderabad"]
+    panel_surface = pygame.Surface(FEATURE_PANEL_RECT.size, pygame.SRCALPHA)
+    panel_rect = panel_surface.get_rect()
+
+    gradient = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+    top_color = (22, 36, 72, 255)
+    bottom_color = (10, 18, 40, 255)
+    for y in range(panel_rect.height):
+        t = y / max(1, panel_rect.height - 1)
         color = (
-            int(18 * (1 - t) + 8 * t),
-            int(32 * (1 - t) + 18 * t),
-            int(54 * (1 - t) + 32 * t),
+            int(top_color[0] * (1 - t) + bottom_color[0] * t),
+            int(top_color[1] * (1 - t) + bottom_color[1] * t),
+            int(top_color[2] * (1 - t) + bottom_color[2] * t),
             255,
         )
-        pygame.draw.line(gradient, color, (0, y), (PANEL_RECT.width, y))
-    panel_surface.blit(gradient, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-    pygame.draw.rect(panel_surface, (80, 120, 200), panel_surface.get_rect(), 3, border_radius=28)
+        pygame.draw.line(gradient, color, (0, y), (panel_rect.width, y))
+    panel_surface.blit(gradient, (0, 0))
 
-    title = TITLE_FONT.render("WanderWorld", True, PRIMARY_TEXT)
-    tagline = SMALL_FONT.render("Curated Journeys · Day & Night", True, SECONDARY_TEXT)
-    panel_surface.blit(title, (32, 32))
-    panel_surface.blit(tagline, (36, 82))
+    vignette = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+    for r in range(0, panel_rect.width // 2, 4):
+        alpha = max(0, 120 - int(r * 0.45))
+        pygame.draw.circle(
+            vignette,
+            (30, 60, 140, alpha),
+            (panel_rect.width // 2, panel_rect.height // 2),
+            panel_rect.width // 2 - r,
+        )
+    panel_surface.blit(vignette, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
-    if selected is None:
-        filler = [
-            "Spin the globe", "and tap a radiant marker", "to reveal a", "bespoke inspiration." 
-        ]
-        for i, line in enumerate(filler):
-            text = LABEL_FONT.render(line, True, SECONDARY_TEXT)
-            panel_surface.blit(text, (36, 150 + i * 36))
-    else:
-        draw_destination_details(panel_surface, selected)
+    pygame.draw.rect(
+        panel_surface,
+        (70, 112, 210),
+        panel_rect,
+        width=2,
+        border_radius=32,
+    )
 
-    surface.blit(panel_surface, PANEL_RECT.topleft)
+    badge = TINY_FONT.render("FEATURE JOURNEY", True, ACCENT_COLOR)
+    panel_surface.blit(badge, (36, 36))
 
+    title = LABEL_FONT.render(destination.name, True, PRIMARY_TEXT)
+    panel_surface.blit(title, (36, 70))
 
-def draw_destination_details(panel_surface: pygame.Surface, destination: Destination) -> None:
-    header = LABEL_FONT.render(destination.name, True, PRIMARY_TEXT)
-    panel_surface.blit(header, (36, 140))
-
-    summary_lines = wrap_text(destination.summary, SMALL_FONT, PANEL_RECT.width - 72)
-    for i, line in enumerate(summary_lines):
+    summary_lines = wrap_text(destination.summary, SMALL_FONT, panel_rect.width - 72)
+    for i, line in enumerate(summary_lines[:4]):
         text = SMALL_FONT.render(line, True, SECONDARY_TEXT)
-        panel_surface.blit(text, (36, 190 + i * 26))
+        panel_surface.blit(text, (36, 122 + i * 26))
 
-    highlight_rect = pygame.Rect(36, 280, PANEL_RECT.width - 72, 120)
-    draw_day_night_card(panel_surface, highlight_rect, destination.palette, destination.highlights)
+    preview_rect = pygame.Rect(36, 220, panel_rect.width - 72, 200)
+    draw_split_preview(panel_surface, preview_rect, destination.palette, destination.highlights)
 
-    note = TINY_FONT.render("Swipe up for bespoke itineraries", True, ACCENT_COLOR)
-    panel_surface.blit(note, (highlight_rect.x, highlight_rect.bottom + 20))
+    itinerary = SMALL_FONT.render("Open curated plan", True, PRIMARY_TEXT)
+    button_rect = pygame.Rect(36, panel_rect.height - 96, panel_rect.width - 72, 56)
+    draw_button(panel_surface, button_rect, itinerary)
+
+    surface.blit(panel_surface, FEATURE_PANEL_RECT.topleft)
 
 
-def draw_day_night_card(surface: pygame.Surface, rect: pygame.Rect, palette: Tuple[Tuple[int, int, int], Tuple[int, int, int]], highlights: Tuple[str, str]) -> None:
+def draw_split_preview(
+    surface: pygame.Surface,
+    rect: pygame.Rect,
+    palette: Tuple[Tuple[int, int, int], Tuple[int, int, int]],
+    highlights: Tuple[str, str],
+) -> None:
     day_color, night_color = palette
-    pygame.draw.rect(surface, day_color, rect, border_radius=22)
-    night_rect = pygame.Rect(rect.x + rect.width // 2, rect.y, rect.width // 2, rect.height)
-    pygame.draw.rect(surface, night_color, night_rect, border_radius=22)
-    pygame.draw.rect(surface, (255, 255, 255), rect, width=2, border_radius=22)
+    preview = pygame.Surface(rect.size, pygame.SRCALPHA)
+    day_rect = pygame.Rect(0, 0, rect.width // 2 + 4, rect.height)
+    night_rect = pygame.Rect(rect.width // 2 - 4, 0, rect.width // 2 + 4, rect.height)
 
-    pygame.draw.circle(surface, (255, 248, 190), (rect.x + rect.width // 4, rect.centery), 26)
-    pygame.draw.circle(surface, (200, 210, 255), (rect.right - rect.width // 4, rect.centery), 26)
+    pygame.draw.rect(preview, day_color, day_rect, border_radius=28)
+    pygame.draw.rect(preview, night_color, night_rect, border_radius=28)
 
-    day_text = TINY_FONT.render(highlights[0], True, (40, 40, 60))
-    night_text = TINY_FONT.render(highlights[1], True, (230, 230, 240))
-    surface.blit(day_text, (rect.x + 24, rect.bottom - 40))
-    surface.blit(night_text, (rect.right - night_text.get_width() - 24, rect.bottom - 40))
+    gloss = pygame.Surface(rect.size, pygame.SRCALPHA)
+    for y in range(rect.height):
+        t = y / max(1, rect.height - 1)
+        alpha = int(120 * (1 - t) ** 2)
+        pygame.draw.line(gloss, (255, 255, 255, alpha), (0, y), (rect.width, y))
+    preview.blit(gloss, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+    divider = pygame.Surface((4, rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(divider, (255, 255, 255, 80), divider.get_rect(), border_radius=2)
+    preview.blit(divider, (rect.width // 2 - 2, 0))
+
+    sun = pygame.Surface((64, 64), pygame.SRCALPHA)
+    pygame.draw.circle(sun, (255, 238, 190, 230), (32, 32), 28)
+    pygame.draw.circle(sun, (255, 255, 255, 100), (24, 28), 18)
+    preview.blit(sun, (rect.width // 4 - 32, 32))
+
+    moon = pygame.Surface((64, 64), pygame.SRCALPHA)
+    pygame.draw.circle(moon, (190, 200, 255, 230), (32, 32), 28)
+    pygame.draw.circle(moon, (255, 255, 255, 160), (22, 28), 12)
+    pygame.draw.circle(moon, (120, 160, 255, 200), (38, 38), 18)
+    preview.blit(moon, (rect.width * 3 // 4 - 32, 32))
+
+    day_text = TINY_FONT.render(highlights[0], True, (32, 34, 56))
+    night_text = TINY_FONT.render(highlights[1], True, (220, 226, 248))
+    preview.blit(day_text, (36, rect.height - 56))
+    preview.blit(night_text, (rect.width - night_text.get_width() - 36, rect.height - 56))
+
+    preview_shadow = pygame.Surface((rect.width + 12, rect.height + 12), pygame.SRCALPHA)
+    pygame.draw.ellipse(preview_shadow, (0, 0, 0, 80), preview_shadow.get_rect())
+    surface.blit(preview_shadow, (rect.x - 6, rect.bottom - 24))
+    surface.blit(preview, rect.topleft)
+
+
+def draw_button(surface: pygame.Surface, rect: pygame.Rect, label_surface: pygame.Surface) -> None:
+    button = pygame.Surface(rect.size, pygame.SRCALPHA)
+    for y in range(rect.height):
+        t = y / max(1, rect.height - 1)
+        color = (
+            int(30 * (1 - t) + 90 * t),
+            int(60 * (1 - t) + 130 * t),
+            int(120 * (1 - t) + 190 * t),
+            255,
+        )
+        pygame.draw.line(button, color, (0, y), (rect.width, y))
+
+    highlight = pygame.Surface(rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(highlight, (255, 255, 255, 60), highlight.get_rect(), border_radius=26)
+    button.blit(highlight, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+    pygame.draw.rect(button, (255, 255, 255, 90), button.get_rect(), width=2, border_radius=26)
+
+    button.blit(
+        label_surface,
+        label_surface.get_rect(center=(rect.width // 2 - 12, rect.height // 2)),
+    )
+    pygame.draw.circle(button, (255, 255, 255), (rect.width - 48, rect.height // 2), 16, width=2)
+    arrow = [(rect.width - 56, rect.height // 2), (rect.width - 46, rect.height // 2 - 6), (rect.width - 46, rect.height // 2 + 6)]
+    pygame.draw.polygon(button, PRIMARY_TEXT, arrow)
+
+    surface.blit(button, rect.topleft)
+
+
+def draw_navigation_bar(surface: pygame.Surface) -> None:
+    nav_surface = pygame.Surface((WIDTH, NAV_BAR_HEIGHT), pygame.SRCALPHA)
+    gradient = pygame.Surface(nav_surface.get_size(), pygame.SRCALPHA)
+    for x in range(WIDTH):
+        t = x / max(1, WIDTH - 1)
+        color = (
+            int(12 + 18 * t),
+            int(28 + 24 * t),
+            int(52 + 40 * t),
+            230,
+        )
+        pygame.draw.line(gradient, color, (x, 0), (x, NAV_BAR_HEIGHT))
+    nav_surface.blit(gradient, (0, 0))
+
+    glass = pygame.Surface(nav_surface.get_size(), pygame.SRCALPHA)
+    pygame.draw.rect(glass, (255, 255, 255, 28), glass.get_rect(), border_radius=28)
+    nav_surface.blit(glass, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+    brand = TITLE_FONT.render("Wanderlust", True, PRIMARY_TEXT)
+    nav_surface.blit(brand, (44, NAV_BAR_HEIGHT // 2 - brand.get_height() // 2))
+
+    items = ["Discover", "Journeys", "Experiences", "Journal"]
+    start_x = 240
+    for idx, item in enumerate(items):
+        label = NAV_FONT.render(item, True, PRIMARY_TEXT if idx == 0 else SECONDARY_TEXT)
+        pos = (start_x + idx * 150, NAV_BAR_HEIGHT // 2 - label.get_height() // 2)
+        nav_surface.blit(label, pos)
+        if idx == 0:
+            underline = pygame.Surface((label.get_width() + 16, 6), pygame.SRCALPHA)
+            pygame.draw.rect(underline, (140, 198, 255, 160), underline.get_rect(), border_radius=3)
+            nav_surface.blit(underline, (pos[0] - 8, NAV_BAR_HEIGHT - 18))
+
+    button_rect = pygame.Rect(WIDTH - 220, 20, 160, NAV_BAR_HEIGHT - 40)
+    button_surface = pygame.Surface(button_rect.size, pygame.SRCALPHA)
+    for y in range(button_rect.height):
+        t = y / max(1, button_rect.height - 1)
+        color = (
+            int(40 * (1 - t) + 90 * t),
+            int(80 * (1 - t) + 150 * t),
+            int(140 * (1 - t) + 210 * t),
+            255,
+        )
+        pygame.draw.line(button_surface, color, (0, y), (button_rect.width, y))
+    pygame.draw.rect(button_surface, (255, 255, 255, 100), button_surface.get_rect(), width=2, border_radius=22)
+    cta = NAV_FONT.render("Plan a Trip", True, PRIMARY_TEXT)
+    button_surface.blit(cta, cta.get_rect(center=(button_rect.width // 2, button_rect.height // 2)))
+    nav_surface.blit(button_surface, button_rect.topleft)
+
+    surface.blit(nav_surface, (0, 0))
+
+    shadow = pygame.Surface((WIDTH, 20), pygame.SRCALPHA)
+    for y in range(20):
+        alpha = max(0, 70 - y * 6)
+        pygame.draw.line(shadow, (0, 0, 0, alpha), (0, y), (WIDTH, y))
+    surface.blit(shadow, (0, NAV_BAR_HEIGHT - 4))
+
+
+def draw_globe_callout(surface: pygame.Surface, selected: Destination | None) -> None:
+    callout_width = 260
+    callout_height = 132
+    x = GLOBE_CENTER[0] - GLOBE_RADIUS + 60
+    y = max(NAV_BAR_HEIGHT + 24, GLOBE_CENTER[1] - GLOBE_RADIUS - 10)
+    callout_rect = pygame.Rect(x, y, callout_width, callout_height)
+
+    callout = pygame.Surface((callout_width, callout_height), pygame.SRCALPHA)
+    for i in range(callout_height):
+        t = i / max(1, callout_height - 1)
+        color = (
+            int(30 * (1 - t) + 18 * t),
+            int(54 * (1 - t) + 32 * t),
+            int(96 * (1 - t) + 48 * t),
+            220,
+        )
+        pygame.draw.line(callout, color, (0, i), (callout_width, i))
+    pygame.draw.rect(callout, (255, 255, 255, 80), callout.get_rect(), width=2, border_radius=24)
+
+    title = SMALL_FONT.render("Explore the globe", True, PRIMARY_TEXT)
+    copy_lines = [
+        "Drag to spin the sphere.",
+        "Tap the haloed markers",
+        "to reveal day & night moods.",
+    ]
+    callout.blit(title, (20, 20))
+    for idx, line in enumerate(copy_lines):
+        text = TINY_FONT.render(line, True, SECONDARY_TEXT)
+        callout.blit(text, (20, 50 + idx * 22))
+
+    pointer = pygame.Surface((44, 40), pygame.SRCALPHA)
+    pygame.draw.polygon(
+        pointer,
+        (40, 72, 120, 220),
+        [(0, 12), (32, 0), (32, 22)],
+    )
+    surface.blit(pointer, (callout_rect.right - 6, callout_rect.centery - 10))
+    surface.blit(callout, callout_rect.topleft)
+
+    if selected:
+        sublabel = TINY_FONT.render(f"Featured: {selected.name}", True, ACCENT_COLOR)
+        surface.blit(sublabel, (callout_rect.x, callout_rect.bottom + 12))
+
+
+def draw_showcase_typography(surface: pygame.Surface) -> None:
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+
+    codex = DISPLAY_FONT.render("Codex", True, PRIMARY_TEXT)
+    codex.set_alpha(55)
+    overlay.blit(codex, (60, HEIGHT // 2 - 140))
+
+    subtitle = OVERLAY_FONT.render("Front-end code", True, PRIMARY_TEXT)
+    subtitle.set_alpha(65)
+    overlay.blit(subtitle, (480, HEIGHT - 180))
+
+    surface.blit(overlay, (0, 0))
 
 
 def wrap_text(text: str, font: pygame.font.Font, width: int) -> List[str]:
@@ -664,6 +863,19 @@ def draw_background(surface: pygame.Surface, starfield: pygame.Surface, rotation
         pygame.draw.circle(gradient, hue, center, r)
     surface.blit(gradient, (GLOBE_CENTER[0] - gradient.get_width() // 2, GLOBE_CENTER[1] - gradient.get_height() // 2), special_flags=pygame.BLEND_RGBA_ADD)
 
+    aurora_sheet = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    pygame.draw.ellipse(
+        aurora_sheet,
+        (60, 140, 220, 60),
+        pygame.Rect(-120, HEIGHT // 2, WIDTH + 240, HEIGHT),
+    )
+    pygame.draw.ellipse(
+        aurora_sheet,
+        (120, 200, 255, 45),
+        pygame.Rect(WIDTH // 2 - 160, HEIGHT // 2 - 220, WIDTH, HEIGHT),
+    )
+    surface.blit(aurora_sheet, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
     # orbiting particles
     orbit_surface = pygame.Surface((GLOBE_RADIUS * 2 + 20, GLOBE_RADIUS * 2 + 20), pygame.SRCALPHA)
     for i in range(40):
@@ -688,7 +900,7 @@ def run() -> None:
     rotation = 0.0
     sun_phase = 0.0
     cloud_offset = 0.0
-    selected: Destination | None = None
+    selected: Destination | None = DESTINATIONS["hyderabad"]
     hitboxes: Dict[str, pygame.Rect] = {}
 
     running = True
@@ -712,12 +924,15 @@ def run() -> None:
         hitboxes = update_destination_markers(rotation)
 
         draw_background(screen, starfield, rotation)
+        draw_navigation_bar(screen)
         globe_surface = renderer.render(rotation, sun_phase, cloud_offset)
         screen.blit(globe_surface, (GLOBE_CENTER[0] - GLOBE_RADIUS, GLOBE_CENTER[1] - GLOBE_RADIUS))
 
         draw_destination_markers(screen, rotation, selected)
         draw_interactive_orbits(screen, selected, rotation)
-        draw_panel(screen, selected)
+        draw_globe_callout(screen, selected)
+        draw_feature_panel(screen, selected)
+        draw_showcase_typography(screen)
 
         pygame.display.flip()
         clock.tick(60)
