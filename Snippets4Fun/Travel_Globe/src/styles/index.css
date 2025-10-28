@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background-color: #050816;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: radial-gradient(circle at 20% 20%, rgba(46, 139, 255, 0.25), transparent 45%),
+    radial-gradient(circle at 80% 30%, rgba(148, 93, 255, 0.2), transparent 45%),
+    #050816;
+  color: #f3f6ff;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+}
+
+.glass-shadow {
+  box-shadow: 0 24px 55px rgba(5, 16, 34, 0.55);
+}
+
+canvas {
+  touch-action: none;
+}
