@@ -1,32 +1,9 @@
-import { Suspense, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Html, Stars } from '@react-three/drei';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ACESFilmicToneMapping, SRGBColorSpace } from 'three';
+import { useMemo, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Stars } from '@react-three/drei';
+import { motion } from 'framer-motion';
 import Globe from './components/Globe.jsx';
-import Atmosphere from './components/Atmosphere.jsx';
-import Markers from './components/Markers.jsx';
-import CameraController from './components/CameraController.jsx';
-import Effects from './components/Effects.jsx';
 import UIOverlay from './components/UIOverlay.jsx';
-
-function SceneContent({ lightingMode, markers, selected, onSelectMarker }) {
-  const worldRef = useRef();
-
-  useFrame((state, delta) => {
-    if (!worldRef.current) return;
-    worldRef.current.rotation.y += delta * 0.08;
-    worldRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.05) * 0.05;
-  });
-
-  return (
-    <group ref={worldRef} position={[0, 0, 0]}>
-      <Atmosphere />
-      <Globe lightingMode={lightingMode} />
-      <Markers markers={markers} selected={selected} onSelect={onSelectMarker} />
-    </group>
-  );
-}
 
 const markerData = [
   {
@@ -59,64 +36,48 @@ function App() {
   const uiMarkers = useMemo(() => markerData, []);
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-hidden">
       <Canvas
+        className="absolute inset-0 -z-10"
         camera={{ position: [0, 0, 6], fov: 45, near: 0.1, far: 100 }}
         dpr={[1, 2]}
-        gl={{ antialias: true, physicallyCorrectLights: true }}
-        onCreated={({ gl }) => {
-          gl.outputColorSpace = SRGBColorSpace;
-          gl.toneMapping = ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.1;
-        }}
+        gl={{ antialias: true }}
       >
-        <color attach="background" args={[0.02, 0.04, 0.1]} />
-        <Suspense
-          fallback={
-            <Html center>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm uppercase tracking-[0.35em] text-white/60">
-                Initializing Luxe Globe…
-              </div>
-            </Html>
-          }
-        >
-          <SceneContent
-            lightingMode={lightingMode}
-            markers={uiMarkers}
-            selected={selected}
-            onSelectMarker={setSelected}
-          />
-          <Stars
-            radius={120}
-            depth={50}
-            count={6000}
-            factor={4}
-            saturation={0}
-            fade
-            speed={0.6}
-          />
-          <Effects />
-        </Suspense>
-        <directionalLight
-          position={[8, 4, 10]}
-          intensity={1.4}
-          color={lightingMode === 'day' ? '#ffffff' : '#91c4ff'}
-        />
+        <color attach="background" args={[0.01, 0.03, 0.09]} />
         <ambientLight intensity={lightingMode === 'day' ? 0.45 : 0.8} />
-        <CameraController />
+        <directionalLight
+          position={[5, 3, 5]}
+          intensity={lightingMode === 'day' ? 1.3 : 0.9}
+          color={lightingMode === 'day' ? '#ffffff' : '#6eb7ff'}
+        />
+        <Globe
+          lightingMode={lightingMode}
+          markers={uiMarkers}
+          selected={selected}
+          onSelectMarker={setSelected}
+        />
+        <Stars radius={140} depth={50} count={5000} factor={4} saturation={0} fade speed={0.6} />
+        <OrbitControls
+          enablePan={false}
+          enableZoom
+          zoomSpeed={0.6}
+          minDistance={4.2}
+          maxDistance={9}
+          enableDamping
+          dampingFactor={0.12}
+          autoRotate
+          autoRotateSpeed={0.2}
+        />
       </Canvas>
 
-      <AnimatePresence>
-        <motion.div
-          className="pointer-events-none absolute inset-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(76,137,255,0.22),transparent_55%)]" />
-        </motion.div>
-      </AnimatePresence>
+      <motion.div
+        className="pointer-events-none absolute inset-0"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(76,137,255,0.22),transparent_55%)]" />
+      </motion.div>
 
       <UIOverlay
         selected={selected}
