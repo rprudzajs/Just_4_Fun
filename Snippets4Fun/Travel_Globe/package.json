@@ -9,9 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/drei": "^9.99.6",
-    "@react-three/fiber": "^8.15.13",
-    "@react-three/postprocessing": "^2.13.7",
+    "@react-three/drei": "^9.108.0",
+    "@react-three/fiber": "^8.15.10",
     "framer-motion": "^10.16.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

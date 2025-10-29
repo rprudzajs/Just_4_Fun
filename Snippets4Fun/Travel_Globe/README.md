@@ -1,6 +1,6 @@
 # Wanderworld Luxe Globe (React Three Fiber)
 
-A cinematic WebGL travel hero built with React Three Fiber, Drei, Postprocessing, and TailwindCSS. The experience mirrors luxury travel inspiration sites with a glassmorphism UI, soft bloom, and custom-shaded Earth.
+A cinematic WebGL travel hero built with React Three Fiber, Drei, and TailwindCSS. The experience mirrors luxury travel inspiration sites with a glassmorphism UI, atmospheric glow, and a custom-shaded Earth.
 
 ## Getting Started
 
@@ -20,7 +20,7 @@ The dev server runs on Vite and opens automatically on `http://localhost:5173`.
    cd Snippets4Fun/Travel_Globe
    npm install
    ```
-   > If you are working behind a proxy or an offline sandbox, allowlist the npm registry so packages like `@react-three/drei` and `@react-three/postprocessing` can be fetched.
+   > If you are working behind a proxy or an offline sandbox, allowlist the npm registry so packages like `@react-three/drei` can be fetched.
 3. Launch the development server:
    ```bash
    npm run dev
@@ -48,7 +48,7 @@ src/
     Atmosphere.jsx     # Additive rim-lit atmosphere shell
     Markers.jsx        # Destination markers with Html labels & framer-motion animations
     CameraController.jsx # OrbitControls wrapper with cinematic damping + autorotation
-    Effects.jsx        # Bloom, tone mapping, and depth of field composer
+    Effects.jsx        # Star field backdrop for subtle parallax
     UIOverlay.jsx      # Tailwind glassmorphism interface with feature card & toggles
   config/textureSources.js # Remote / local texture source definitions
   styles/index.css     # Tailwind entrypoint + cinematic background gradients
@@ -58,7 +58,7 @@ src/
 
 - Glassy UI overlay with hero typography and animated featured journey card
 - Physically-lit Earth shading with dynamic sunlight, emissive night glow, and cloud parallax
-- Additive atmosphere halo, bloom, and depth of field for cinematic polish
+- Additive atmosphere halo, starry background, and cinematic autorotation
 - Interactive travel markers (Hyderabad, Cape Town, Oslo) that orbit with the globe
 - Day/Night toggle that swaps texture mood and rebalances lighting
 

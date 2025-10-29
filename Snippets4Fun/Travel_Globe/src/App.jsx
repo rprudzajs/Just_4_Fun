@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
 import Globe from './components/Globe.jsx';
 import UIOverlay from './components/UIOverlay.jsx';
+import CameraController from './components/CameraController.jsx';
+import Effects from './components/Effects.jsx';
 
 const markerData = [
   {
@@ -56,18 +57,8 @@ function App() {
           selected={selected}
           onSelectMarker={setSelected}
         />
-        <Stars radius={140} depth={40} count={4000} factor={4} saturation={0} fade speed={0.6} />
-        <OrbitControls
-          enablePan={false}
-          enableZoom
-          zoomSpeed={0.5}
-          minDistance={4.2}
-          maxDistance={9}
-          enableDamping
-          dampingFactor={0.12}
-          autoRotate
-          autoRotateSpeed={0.15}
-        />
+        <Effects />
+        <CameraController />
       </Canvas>
 
       <UIOverlay
