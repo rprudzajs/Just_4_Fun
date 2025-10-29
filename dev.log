@@ -1,0 +1,15 @@
+
+> wanderworld-globe@0.0.1 dev
+> vite
+
+
+  VITE v4.5.14  ready in 300 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h to show help
+2:10:55 PM [vite] hmr update /src/components/Globe.jsx, /src/styles/index.css
+2:11:04 PM [vite] hmr update /src/components/Globe.jsx, /src/styles/index.css
+2:11:41 PM [vite] hmr update /src/App.jsx, /src/styles/index.css
+2:11:58 PM [vite] hmr update /src/App.jsx, /src/styles/index.css
+2:14:04 PM [vite] hmr update /src/components/Globe.jsx, /src/styles/index.css
